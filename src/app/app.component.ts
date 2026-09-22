@@ -13,7 +13,7 @@ type Phase = 'ready' | 'work' | 'rest' | 'done';
 export class AppComponent implements OnDestroy {
   workSeconds = signal(45);
   restSeconds = signal(5);
-  rounds = signal(4);
+  rounds = signal(2);
   phasesPerRound = signal(4);
   phase = signal<Phase>('ready');
   remaining = signal(45);
@@ -22,11 +22,15 @@ export class AppComponent implements OnDestroy {
   running = signal(false);
   soundEnabled = signal(true);
   startCountdown = signal<number | null>(null);
+  page = signal(0);
+  slideDir = signal(0);
+  private touchStartX = 0;
   private intervalId?: number;
   private lastAnnounced = -1;
+  private startRest = signal(false);
   private phaseTotal = signal(45);
 
-  phaseLabel = computed(() => ({ready:'PRÊT ?', work:'GAINE !', rest:'RÉCUPÈRE', done:'TERMINÉ !'}[this.phase()]));
+  phaseLabel = computed(() => this.phase()==='rest' && this.startRest() ? 'PRÉPARATION' : ({ready:'PRÊT ?', work:'FAIS ROTIR TON POULET !', rest:'RÉCUPÈRE', done:'TERMINÉ !'}[this.phase()]));
   phaseHint = computed(() => this.phase()==='ready' ? 'Configure ta séance puis lance-toi' : this.phase()==='done' ? 'Belle séance, bravo !' : this.phasesPerRound()>1 ? `Série ${this.currentRound()}/${this.rounds()} · Phase ${this.currentPhase()}/${this.phasesPerRound()}` : `Série ${this.currentRound()} sur ${this.rounds()}`);
   progress = computed(() => {
     const total = this.phaseTotal();
@@ -47,18 +51,25 @@ export class AppComponent implements OnDestroy {
   async start() {
     this.stopTimer();
     if(this.phase()==='done') this.reset();
-    if(this.restSeconds()>0) this.beginPhase('rest', this.restSeconds());
+    if(this.restSeconds()>0){ this.startRest.set(true); this.beginPhase('rest', this.restSeconds()); }
     else this.beginPhase('work');
   }
 
-  togglePause() { this.running() ? this.stopTimer() : this.runTimer(); }
-  reset() { this.stopTimer(); speechSynthesis?.cancel(); this.phase.set('ready'); this.currentRound.set(1); this.currentPhase.set(1); this.remaining.set(this.workSeconds()); this.phaseTotal.set(this.workSeconds()); this.startCountdown.set(null); }
+  togglePause() { this.running() ? this.stopTimer() : this.runTimer(); }  reset() { this.stopTimer(); speechSynthesis?.cancel(); this.startRest.set(false); this.phase.set('ready'); this.currentRound.set(1); this.currentPhase.set(1); this.remaining.set(this.workSeconds()); this.phaseTotal.set(this.workSeconds()); this.startCountdown.set(null); }
   toggleSound() { this.soundEnabled.update(v=>!v); if(!this.soundEnabled()) speechSynthesis?.cancel(); }
+
+  onTouchStart(e:TouchEvent){ this.touchStartX = e.changedTouches[0].clientX; }
+  onTouchEnd(e:TouchEvent){
+    const dx = e.changedTouches[0].clientX - this.touchStartX;
+    if(Math.abs(dx) < 50) return;
+    this.slideDir.set(dx < 0 ? 1 : -1);
+    this.page.update(p=>(p+1)%2);
+  }
 
   private beginPhase(phase:'work'|'rest', duration?:number) {
     const total = duration ?? (phase==='work' ? this.workSeconds() : this.restSeconds());
     this.phase.set(phase); this.phaseTotal.set(total); this.remaining.set(total); this.lastAnnounced=-1;
-    this.speak(phase==='work' ? 'Gainage' : 'Pause'); this.runTimer();
+    this.speak(phase==='work' ? 'Gainage' : (this.startRest() ? 'Préparation' : 'Pause')); this.runTimer();
   }
   private runTimer() {
     if(this.intervalId || this.phase()==='ready' || this.phase()==='done') return;
@@ -72,13 +83,15 @@ export class AppComponent implements OnDestroy {
   private stopTimer(){ if(this.intervalId) window.clearInterval(this.intervalId); this.intervalId=undefined; this.running.set(false); }
   private advance(){
     this.stopTimer();
-    if(this.phase()==='rest') { this.beginPhase('work'); return; }
+    if(this.phase()==='rest') { if(this.startRest()){ this.startRest.set(false); } else { this.nextRound(); } this.beginPhase('work'); return; }
     const lastPhaseOfRound = this.currentPhase() >= this.phasesPerRound();
     const lastRound = this.currentRound() >= this.rounds();
     if(lastPhaseOfRound && lastRound){ this.phase.set('done'); this.speak('Séance terminée. Bravo !'); return; }
-    if(lastPhaseOfRound){ this.currentRound.update(v=>v+1); this.currentPhase.set(1); }
+    if(this.restSeconds()===0){ this.nextRound(); this.beginPhase('work'); } else this.beginPhase('rest');
+  }
+  private nextRound(){
+    if(this.currentPhase() >= this.phasesPerRound()){ this.currentRound.update(v=>v+1); this.currentPhase.set(1); }
     else { this.currentPhase.update(v=>v+1); }
-    if(this.restSeconds()===0){ this.beginPhase('work'); } else this.beginPhase('rest');
   }
   private speak(text:string){ if(!this.soundEnabled() || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='fr-FR'; u.rate=1.05; speechSynthesis.speak(u); }
   private delay(ms:number){ return new Promise<void>(resolve=>window.setTimeout(resolve,ms)); }

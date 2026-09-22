@@ -32,8 +32,8 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {
-            "production": { "buildTarget": "gainage-timer:build:production" },
-            "development": { "buildTarget": "gainage-timer:build:development" }
+            "production": { "buildTarget": "Timer:build:production" },
+            "development": { "buildTarget": "Timer:build:development" }
           },
           "defaultConfiguration": "development"
         }

@@ -1,22 +1,26 @@
 <main [class]="'app phase-'+phase()">
   <header><div><small>SESSION ACTIVE</small><h1>CORE<span>PULSE</span></h1></div><button class="icon" (click)="toggleSound()" [attr.aria-label]="soundEnabled() ? 'Couper le son' : 'Activer le son'">{{soundEnabled()?'🔊':'🔇'}}</button></header>
-  <section class="layout">
-    <article class="timer-card">
+  <section class="pager" (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event)">
+    @if(page()===0){
+    <article class="timer-card page" [class.from-left]="slideDir()<0" [class.from-right]="slideDir()>0">
       <div class="phase-label">{{phaseLabel()}}</div><p class="hint">{{phaseHint()}}</p>
-      <div class="dial" [style.--progress]="progress()+'%'"><div><strong>{{phase()==='done'?'✓':remaining()}}</strong><small>SECONDES</small></div></div>
+      <div class="dial" [style.--progress]="progress()+'%'"><div><strong>{{phase()==='done'?'✓':remaining()}}</strong><small>{{remaining()===1?'SECONDE':'SECONDES'}}</small></div></div>
       <div class="actions">
         @if(phase()==='ready' || phase()==='done'){<button class="primary" (click)="start()">▶ Démarrer</button>}
         @else {<button class="primary" (click)="togglePause()">{{running()?'Ⅱ Pause':'▶ Reprendre'}}</button>}
         <button class="secondary" (click)="reset()">↻</button>
       </div>
-      <div class="rounds">@for(i of [].constructor(rounds()); track $index){<i [class.active]="$index < currentRound() || phase()==='done'"></i>}</div>
+      <div class="rounds">@for(r of [].constructor(rounds()); track $index; let ri = $index){<div class="round-group">@for(p of [].constructor(phasesPerRound()); track $index; let pi = $index){<i [class.active]="phase()==='done' || ri < currentRound()-1 || (ri === currentRound()-1 && pi < currentPhase())"></i>}</div>}</div>
     </article>
-    <aside><h2>⚙ Paramètres</h2><p>Personnalise ta séance</p>
+    }
+    @if(page()===1){
+    <aside class="page" [class.from-left]="slideDir()<0" [class.from-right]="slideDir()>0"><h2>⚙ Paramètres</h2><p>Personnalise ta séance</p>
       <label>Temps de gainage</label><div class="setting"><button (click)="adjust('work',-5)">−</button><input type="number" [value]="workSeconds()" (change)="updateWork($any($event.target).value)" [disabled]="running()"><span>SEC</span><button (click)="adjust('work',5)">+</button></div>
       <label>Temps de pause</label><div class="setting"><button (click)="adjust('rest',-5)">−</button><input type="number" [value]="restSeconds()" (change)="updateRest($any($event.target).value)" [disabled]="running()"><span>SEC</span><button (click)="adjust('rest',5)">+</button></div>
       <label>Phases par série</label><div class="setting"><button (click)="adjust('phases',-1)">−</button><input type="number" [value]="phasesPerRound()" (change)="updatePhases($any($event.target).value)" [disabled]="running()"><span>PHASES</span><button (click)="adjust('phases',1)">+</button></div>
-      <label>Nombre de séries</label>
+      <label>Nombre de séries</label><div class="setting"><button (click)="adjust('rounds',-1)">−</button><input type="number" [value]="rounds()" (change)="updateRounds($any($event.target).value)" [disabled]="running()"><span>SÉRIES</span><button (click)="adjust('rounds',1)">+</button></div>
     </aside>
+    }
   </section>
   @if(startCountdown()!==null){<div class="overlay"><small>PRÉPARE-TOI</small><strong>{{startCountdown()===0?'GO':startCountdown()}}</strong></div>}
 </main>
